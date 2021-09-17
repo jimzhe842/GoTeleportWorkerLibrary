@@ -58,9 +58,9 @@ Overall, this library was not designed to have workers finish in the order in wh
 
 ## **API**
 ----
-The HTTP API will run on mTLS and username/password authorization where the server stores the credentials in memory <!--and JWT authorization-->. 
+The HTTP API will run on mTLS with the common name field used for authorization <!--and JWT authorization-->. 
 <!-- In particular, TLS 1.3 will be used to set up a secure communication channel. It is not only more secure but also has a shorter handshake than previous versions.  -->
-In particular, TLS 1.2 will be used to set up a secure communication channel. The cipher suites to be used are: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256.
+In particular, TLS 1.3 defaults will be used to set up a secure communication channel. The cipher suites to be used are: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 because they are supported by Golang.
 
 Two self-signed Root CAs will be used as the basis of verification, one each for the client and server certificates. For convenience, openSSL will be used to generate the keys, CSRs and certificates. In the future, there could be a system in place for the server to generate certificates for the client. Localhost will be used for the common name field of the CSR. Meanwhile a generic name like "client-1" will be used for the client CSR common name. In the future, since CSR/certification generation will be handled in the codebase, this will be set to the configured server domain name.
 
