@@ -32,7 +32,7 @@ type job struct {
   status Status // status of the job intialized to "starting" ("starting", "running", "stopped", or "finished")
   ctx context.Context // context for the exec.CommandContext
   cancel context.CancelFunc // cancel func to stop a job
-  output interface{} // result of a finished job
+  output string // result of a finished job
   lock sync.Mutex // read/write locks
 }
 ```
@@ -50,7 +50,7 @@ job.ctx = ctx
 
 Therefore, calling cancel should stop the process that was started by the `CommandContext` function.
 
-A job that has completed will have an `output` value and with a status of `finished`.
+A job that has completed will have the `output` field set to the job result and with a status of `finished`.
 
 The `Query` method also takes in a job id and will return the relevant job info back to the caller.
 
