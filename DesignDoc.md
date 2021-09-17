@@ -10,7 +10,7 @@ Firstly, the number of workers will be hardcoded but this could be moved into a 
 
 The worker library will export three methods: `Start`, `Stop`, and `Query`.
 
-The `Start` method takes in a `name` and a `filepath` representing the path to the go file that has the job. (I'm assuming that the jobs sit on separate files on the same server.) Furthermore, this method will instantiate a new `job` instance pointer and assign it to a worker through a `jobs` channel.
+The `Start` method takes in a `filepath` representing the path to the job bin file, and a variable number of arguments. (I'm assuming that the jobs sit on separate files on the same server.) Furthermore, this method will instantiate a new `job` instance pointer and assign it to a worker through a `jobs` channel. The job ids will correspond to the `job` index in the global slice variable. That also means that jobs cannot be removed or inserted, otherwise the index will shift.
 This `job` instance will have the following signature:
 
 ```go
@@ -37,28 +37,92 @@ Overall, this library was not designed to have workers finish in the order in wh
 
 ## **API**
 ----
-The HTTP API will run on mTLS and JWT authorization. In particular, TLS 1.3 will be used to set up a secure communication channel. It is not only more secure but also has a shorter handshake than previous versions. The cipher suites to be used are: TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA.
+The HTTP API will run on mTLS and JWT authorization. In particular, TLS 1.3 will be used to set up a secure communication channel. It is not only more secure but also has a shorter handshake than previous versions. The cipher suites to be used are: TLS_AES_128_GCM_SHA256.
 
-A self-signed Root CA will be used as the basis of verification for both the client and server certificates. For convenience, openSSL will be used to generate the keys, CSRs and certificates. In the future, there could be a system in place for the server to generate certificates for the client. Localhost will be used for the common name field of the CSR. In the future, since CSR/certification generation will be handled in the codebase, this will be set to the configured server domain name.
+Two self-signed Root CAs will be used as the basis of verification, one each for the client and server certificates. For convenience, openSSL will be used to generate the keys, CSRs and certificates. In the future, there could be a system in place for the server to generate certificates for the client. Localhost will be used for the common name field of the CSR. In the future, since CSR/certification generation will be handled in the codebase, this will be set to the configured server domain name.
 
-A shared Root CA will be used for convenience, but in the future, we may want separate root CAs and maybe even set up intermediate CAs for additional security. JWTs and the server secret will be pregenerated for authorization. They will not have an expiration time because it is only a proof of concept. In the future, a login endpoint and logout endpoint would be necessary to handle the various states of authorization. JWTs are chosen so that servers do not need to store session data.
+Data from the client certificate will be used for authentication and authorization for simplicity.
 
 The API consists of the following endpoints:
 
 **POST** `/start`
-- client sends a json body that has the `name` and the job `filePath` to schedule a new job
-- returns the job information
+- client sends a json body that has the job `filePath`, and also the arguments to schedule a new job
+- client also needs to send an authorization header
+- returns a status 200 if the filePath leads to a bin file and the arguments are valid, also returns the job id
+- returns a status 404 if the filePath does not exist
+- returns a status 422 if the arguments are not valid
+- returns a status 403 if the client is unauthorized
 
 **POST** `/stop`
-- client sends a json body of the job id to stop a job
-- returns the job information
+- client sends a json body of the job id to stop a job and an authorization header
+- returns a status 200 if the id exists
+  - if the job was already completed, return the status and output
+  - if the job was already stopped previously or successfully stopped, return the output
+- returns a status 404 if the id does not exist
+- returns a status 403 if the client is unauthorized
 
 **GET** `/query`
-- returns a list of all scheduled jobs, including their relevant info
+- client also needs to send an authorization header
+- returns a status 200 with a list of all scheduled jobs, including their relevant info like id, status, and output
+- returns a status 403 if the client is unauthorized
 
 ## **CLI**
 ----
 The client CLI will store their pregenerated certificate in memory for the mTLS handshake.
 
 The client CLI will store the pregenerated JWT as mentioned and send it in the `authorization` header of every request. The JWT payload will consist of the property `user`, which the server can check. The JWT will be sent through the `authorization` header of each HTTP request using the Bearer schema. However, in the future, the client will be required to send the login info.
+
+### **CLI Commands**
+
+Let's call the CLI command `rw` for remote worker.
+
+### **Connecting**
+
+```
+$ rw connect [server addr]
+```
+
+eg:
+```
+$ rw connect localhost:3000
+```
+
+Sets up the mTLS handshake and creates a persistent TCP connection with the remote server
+
+### **Starting a job**
+
+```
+$ rw start [path to bin] [args]
+```
+
+eg:
+```
+$ rw start add.exe 8 10
+```
+
+For simplicity the args will get converted to integers
+
+### **Stopping a job**
+
+```
+$ rw stop [id]
+```
+
+Id will be the job id
+
+### **Query**
+
+```
+$ rw ls
+```
+
+Example output:
+
+```
+$ rw ls
+
+Id: 1, Status: Running, Output: Null
+```
+
+This will list all the active or completed/stopped jobs.
 
