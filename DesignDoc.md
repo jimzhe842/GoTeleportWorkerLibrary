@@ -173,17 +173,19 @@ eg:
 $ rw connect localhost:3000
 ```
 
-Sets up the mTLS handshake and creates a persistent TCP connection with the remote server, where the server response has an HTTP header `Connection: Keep-Alive`
+Sets up the mTLS handshake and creates a persistent TCP connection with the remote server, where the server response has an HTTP header `Connection: Keep-Alive`. This will create a process that listens for user input, thus allowing reuse of the TCP connection, until the process gets "Control-C" by the user, or is exited out.
+
+Thus the below commands are for this process session, which blocks on user input.
 
 ### **Starting a job**
 
 ```
-$ rw start [path to bin] [args]
+$ start [path to bin] [args]
 ```
 
 eg:
 ```
-$ rw start add.exe 8 10
+$ start add.exe 8 10
 ```
 
 For simplicity the args will get converted to integers
@@ -191,7 +193,7 @@ For simplicity the args will get converted to integers
 ### **Stopping a job**
 
 ```
-$ rw stop [id]
+$ stop [id]
 ```
 
 Id will be the job id
@@ -199,13 +201,13 @@ Id will be the job id
 ### **Query**
 
 ```
-$ rw ls
+$ ls
 ```
 
 Example output:
 
 ```
-$ rw ls
+$ ls
 
 Id: 1, Status: Running, Output: Null
 ```
