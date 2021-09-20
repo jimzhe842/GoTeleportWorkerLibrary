@@ -6,7 +6,7 @@ My interpretation of this exercise is to build a server that stores jobs. These 
 
 ## **Worker Library**
 ----
-Firstly, the number of workers will be hardcoded but this could be moved into a configuration file in the future. Limiting the number of workers will control CPU usage, in case the server is needed for any other tasks. The worker library will include a variable storing a map of user authorization names to maps of  pointers to `job` instances. The map data structure allows for easy random access with authorization implemented.
+Since CPU usage is not controlled, a new worker will be created when a job is received as long as the server has sufficient resources. The worker library will include a variable storing a map of user authorization names to maps of  pointers to `job` instances. The map data structure allows for easy random access with authorization implemented.
 Eg. (in json representation)
 ```json
 // map variable
@@ -39,7 +39,7 @@ type job struct {
 
 The worker will execute the command with the `exec.CommandContext` function to create a stoppable process. At this point the job has a status of `running`. While it is running, the worker will periodically check any partially finished job outputs and write that to the output field. After, a `job` instance is processed by a worker, the worker will lock the `job` set the `status` and `output` to the appropriate values.
 
-The `Stop` method takes in a `job` id, references the `job` pointer and call its cancel function to stop the job. A stopped job will not have an output and its status will be set to `stopped`.
+The `Stop` method takes in a `job` id, references the `job` pointer and call its cancel function to stop the job. A stopped job will have its output set to its most result if anything was outputted and its status will be set to `stopped`.
 The `cancel` method will be initialized like this:
 ```go
 ctx, cancel := context.withCancel(context.Background())
@@ -60,15 +60,14 @@ Overall, this library was not designed to have workers finish in the order in wh
 ----
 The HTTP API will run on mTLS with the common name field used for authorization <!--and JWT authorization-->. 
 <!-- In particular, TLS 1.3 will be used to set up a secure communication channel. It is not only more secure but also has a shorter handshake than previous versions.  -->
-In particular, TLS 1.3 defaults will be used to set up a secure communication channel. The default TLS 1.3 ciphers will be used.
-<!-- The cipher suites to be used are: TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 because they are supported by Golang. -->
+In particular, TLS 1.3 (with the default cipher suites for Go) will be used to set up a secure communication channel.
 
 Two self-signed Root CAs will be used as the basis of verification, one each for the client and server certificates. For convenience, openSSL will be used to generate the keys, CSRs and certificates. In the future, there could be a system in place for the server to generate certificates for the client. Localhost will be used for the common name field of the CSR. Meanwhile a generic name like "client-1" will be used for the client CSR common name. In the future, since CSR/certification generation will be handled in the codebase, this will be set to the configured server domain name.
 
 The API consists of the following endpoints:
 
 **POST** `/start`
-- client sends a json body that has the job `filePath`, and also the arguments to schedule a new job
+- client sends a json body that has the job `filePath`, an array of options and an array of arguments to schedule a new job
 <!-- - client also needs to send an authorization header -->
 - returns a status 200 if the filePath leads to a bin file and the arguments are valid, also returns the job id
 - returns a status 404 if the filePath does not exist
@@ -76,10 +75,13 @@ The API consists of the following endpoints:
 - returns a status 403 if the client is unauthorized
 
 eg:
+
 ```json
 // request
 {
-  "command": "cat file.txt",
+  "command": "cat",
+  "opts": ["-n"],
+  "args": ["file.txt"]
 }
 
 //response (success)
@@ -165,36 +167,23 @@ Let's call the CLI command `rw` for remote worker.
 
 ### **Connecting**
 
-```
-$ rw connect [server addr]
-```
-
-eg:
-```
-$ rw connect localhost:3000
-```
-
-Sets up the mTLS handshake and creates a persistent TCP connection with the remote server, where the server response has an HTTP header `Connection: Keep-Alive`. This will create a process that listens for user input, thus allowing reuse of the TCP connection, until the process gets "Control-C" by the user, or is exited out.
-
-Thus the below commands are for this process session, which blocks on user input.
+The server address will be hardcoded for the client, set to `localhost:3000`.
 
 ### **Starting a job**
 
 ```
-$ start [path to bin] [args]
+$ rw start [path to bin] [args]
 ```
 
 eg:
 ```
-$ start add.exe 8 10
+$ rw start add.exe 8 10
 ```
-
-For simplicity the args will get converted to integers
 
 ### **Stopping a job**
 
 ```
-$ stop [id]
+$ rw stop [id]
 ```
 
 Id will be the job id
@@ -202,13 +191,13 @@ Id will be the job id
 ### **Query**
 
 ```
-$ ls
+$ rw ls
 ```
 
 Example output:
 
 ```
-$ ls
+$ rw ls
 
 Id: 1, Status: Running, Output: Null
 ```
